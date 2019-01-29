@@ -1,8 +1,7 @@
 .grid-container {
     display: inline-grid;
     grid-gap: 5px;
-    /*background-color: #2196F3;*/
-    margin: 10px;
+    margin-left: 20%;
 }
 
 .grid-item {
@@ -38,6 +37,40 @@ input {
     font-size: 16px;
 }
 
-.game-container{
+.game-container {
+    width: 50%;
     margin: 0 auto;
 }
+
+.game-info {
+    display: grid;
+    grid-template-rows: auto auto;
+    grid-template-columns: 270px 270px;
+    margin-left: 20%;
+    margin-bottom: 5%;
+    grid-gap: 15px;
+}
+
+.game-info_score{
+    display: grid;
+    grid-template-columns: auto 40px ;
+    padding-left: 20px;
+}
+.game-info_best-result{
+    display: grid;
+    grid-template-columns: auto 40px ;
+}
+
+#game-status{
+    grid-column-start: 1;
+    grid-column-end: 3;
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+}
+

@@ -1,4 +1,20 @@
 const size = 10;
+const BONUS = 10;
+const GAME_PLAYER_SCORE_ID = 'game-score';
+const START_SCORE = 0;
+
+function countScore(score) {
+    return function () {
+        return score += BONUS
+    }
+}
+
+let setCurrentScore = countScore(START_SCORE);
+
+let changeScoreAmountOnUI = (score, elementId) => {
+    let scoreId = document.getElementById(elementId);
+    scoreId.innerHTML = score
+};
 
 
 let moveToDecidedDirection = (currentPosition, direction) => {
@@ -73,10 +89,10 @@ let handleSnakeBodyCollision = (snake) => {
 };
 
 let handleGameFieldCollision = (snake, gameField) => {
-    if (snake[0]['currentPosition'][0] < gameField.length
-        && snake[0]['currentPosition'][0] >= 0
-        && snake[0]['currentPosition'][1] >= 0
-        && snake[0]['currentPosition'][1] < gameField[0].length) {
+    let position = snake[0]['currentPosition'];
+    if (position[0] < gameField.length
+        && position[0] >= 0 && position[1] >= 0
+        && position[1] < gameField[0].length) {
         return false;
     }
     return true;
@@ -91,6 +107,8 @@ let handleFood = (food, snake, direction, func, gameField) => {
     handleMovement(direction, snake, func);
     if (snake[0]['currentPosition'][0] === food[2][0] && snake[0]['currentPosition'][1] === food[2][1]) {
         food[2] = [];
+        let bonusScore = setCurrentScore();
+        changeScoreAmountOnUI(bonusScore, GAME_PLAYER_SCORE_ID);
         snake.push(createPiece('body', newSnakePosition[0]['direction'], newSnakePosition[0]['currentPosition'].slice()))
     }
     return true
