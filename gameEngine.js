@@ -2,20 +2,48 @@ const size = 10;
 const BONUS = 10;
 const GAME_PLAYER_SCORE_ID = 'game-score';
 const START_SCORE = 0;
+const TOP_RESULT = 'best-result';
+const PAUSE_BUTTON = 'game-status';
+const BEST_RESULT_UI = 'best-result_score';
+let gameState = true;
+let score = 0;
 
-function countScore(score) {
-    return function () {
-        return score += BONUS
+
+let countScore = score => () => score += BONUS;
+let setCurrentScore = countScore(START_SCORE)
+
+class LocalStorageWorker {
+
+    set(key, value) {
+        localStorage.setItem(key, value);
     }
+
+    get(key) {
+        return localStorage.getItem(key);
+    }
+
+    clear() {
+        localStorage.clear();
+    }
+
+    compareCurrentWithBestResultAndReturnHigher(key, current) {
+        let oldResult = this.get(key);
+        return oldResult > current ? oldResult : current;
+    }
+
 }
 
-let setCurrentScore = countScore(START_SCORE);
+
+;
 
 let changeScoreAmountOnUI = (score, elementId) => {
     let scoreId = document.getElementById(elementId);
     scoreId.innerHTML = score
 };
 
+let checkElemPositionIn2DArray = (pos, array) => {
+    return pos[0] >= 0 && pos[0] < array.length && pos[1] >= 0 && pos[1] < array[1].length;
+};
 
 let moveToDecidedDirection = (currentPosition, direction) => {
     let currentPositionCopy = [...currentPosition];
@@ -59,7 +87,6 @@ let createPiece = (bodyPart, direction, currentPosition, func) => {
 let makeArrayDeepCopy = array => JSON.parse(JSON.stringify(array));
 
 let handleMovement = (direction, snake, func) => {
-    console.log('handleMovement', direction, JSON.stringify(snake));
     let newSnakePosition = JSON.parse(JSON.stringify(snake));
     if (direction === undefined) {
         direction = snake[0]['direction']
@@ -74,7 +101,6 @@ let handleMovement = (direction, snake, func) => {
             value['nextPosition'] = func(value['currentPosition'], newSnakePosition[index - 1]['direction'])
         }
     });
-    console.log(JSON.stringify(snake));
     return [...snake]
 };
 
@@ -90,25 +116,17 @@ let handleSnakeBodyCollision = (snake) => {
 
 let handleGameFieldCollision = (snake, gameField) => {
     let position = snake[0]['currentPosition'];
-    if (position[0] < gameField.length
-        && position[0] >= 0 && position[1] >= 0
-        && position[1] < gameField[0].length) {
-        return false;
-    }
-    return true;
+    return !checkElemPositionIn2DArray(position, gameField)
 };
 
 
 let handleFood = (food, snake, direction, func, gameField) => {
     let newSnakePosition = JSON.parse(JSON.stringify(snake)).slice(-1);
-    // if (handleSnakeBodyCollision(snake) || handleGameFieldCollision(snake, gameField)) {
-    //     return false;
-    // }
     handleMovement(direction, snake, func);
     if (snake[0]['currentPosition'][0] === food[2][0] && snake[0]['currentPosition'][1] === food[2][1]) {
         food[2] = [];
-        let bonusScore = setCurrentScore();
-        changeScoreAmountOnUI(bonusScore, GAME_PLAYER_SCORE_ID);
+        score = setCurrentScore();
+        changeScoreAmountOnUI(score, GAME_PLAYER_SCORE_ID);
         snake.push(createPiece('body', newSnakePosition[0]['direction'], newSnakePosition[0]['currentPosition'].slice()))
     }
     return true
@@ -154,9 +172,13 @@ let getRandomElementInArray = (array) => {
 
 let gameFieldMapping = (snake, gameField) => {
     snake.forEach(v => {
-        let row = v['currentPosition'][0];
-        let column = v['currentPosition'][1];
-        gameField[row][column] = 'x'
+        let position = v['currentPosition'];
+        if (checkElemPositionIn2DArray(position, gameField)) {
+            let row = v['currentPosition'][0];
+            let column = v['currentPosition'][1];
+            gameField[row][column] = 'x'
+        }
+
     });
     return gameField.slice()
 };
@@ -210,17 +232,23 @@ let drawGameFieldWithSnakeAndFood = (fieldWithMappedSnake, food, gridItem, gridI
 };
 
 
-let handleAction = (snake, food, snakeDirection, gridItemChunked, gridItem) => {
+let handleAction = (snake, food, gridItemChunked, gridItem, gameState, snakeDirection) => {
     let currentState = makeArrayDeepCopy(gridItemChunked);
-    //TODO fix it
     if (handleSnakeBodyCollision(snake) || handleGameFieldCollision(snake, gridItemChunked)) {
-        // return false;
-        alert("YOU LOOSE")
+        gameState = false;
+        if (!gameState) {
+            let storage = new LocalStorageWorker();
+            let gameResult = storage.compareCurrentWithBestResultAndReturnHigher(TOP_RESULT, score);
+            storage.set(TOP_RESULT, gameResult);
+            clearInterval(intervalId);
+        }
+    } else {
+        fieldWithMappedSnake = gameFieldMapping(snake, currentState);
+        food = generateFoodOnTheField(fieldWithMappedSnake, food, gridItemChunked);
+        gameResult = handleFood(food, snake, snakeDirection, moveToDecidedDirection, gridItemChunked);
+        drawGameFieldWithSnakeAndFood(fieldWithMappedSnake, food, gridItem, gridItemChunked);
     }
-    fieldWithMappedSnake = gameFieldMapping(snake, currentState);
-    food = generateFoodOnTheField(fieldWithMappedSnake, food, gridItemChunked);
-    gameResult = handleFood(food, snake, snakeDirection, moveToDecidedDirection, gridItemChunked);
-    drawGameFieldWithSnakeAndFood(fieldWithMappedSnake, food, gridItem, gridItemChunked);
+
 };
 
 const gameField = Array.from({length: Math.pow(size, 2)}, (x, i) => i);
@@ -237,29 +265,49 @@ document.addEventListener('DOMContentLoaded', function (event) {
     }
 
     gridItem = Array.from(document.getElementsByClassName('grid-item'));
+    let storage = new LocalStorageWorker();
+    let currentBestScore = storage.get(TOP_RESULT);
+    let displayOnUIBestScore = currentBestScore ? currentBestScore : 0;
+    changeScoreAmountOnUI(displayOnUIBestScore, BEST_RESULT_UI);
+
 }, false);
+
 let gridItemChunked = splitArrayToChunks(gameField, size);
 let food = ['food', '', []];
 const snake = [];
 var gameResult = '';
 const snakeBlueprintData = [['head', '', [2, 2]]];
+
 snakeBlueprintData.forEach(value => {
     let z = createPiece(value[0], value[1], value[2], moveToDecidedDirection);
     snake.push(z)
 });
 
-let snakeDirection;
 let intervalId;
 
+const pauseButton = document.getElementById(PAUSE_BUTTON);
+pauseButton.addEventListener('click', function (event) {
+    clearInterval(intervalId);
+    if (pauseButton.innerText === 'Pause') {
+        pauseButton.innerText = 'Continue';
+        clearInterval(intervalId);
+    } else {
+        pauseButton.innerText = 'Pause';
+        intervalId = setInterval(handleAction.bind(null, snake, food, gridItemChunked, gridItem, gameState), 300);
+    }
+});
 
 document.addEventListener('keydown', function (event) {
     const key = event.key;
-    console.log('press', key);
+    console.log('press', key, ', intervalId:', intervalId);
     if (intervalId !== undefined) {
         clearInterval(intervalId);
     }
-    intervalId = setInterval(handleAction.bind(null, snake, food, key, gridItemChunked, gridItem), 300);
+    intervalId = setInterval(handleAction.bind(null, snake, food, gridItemChunked, gridItem, gameState, key), 300);
+
 });
+
+
 
 
 
