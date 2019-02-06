@@ -14,8 +14,6 @@ const snakeBlueprintData = [['head', '', [2, 3]], ['body', '', [2, 2]], ['body',
 const countScore = score => () => score += BONUS;
 const setCurrentScore = countScore(START_SCORE);
 const changeScoreAmountOnUI = (score, elementId) => document.getElementById(elementId).innerHTML = score;
-const handleGameFieldCollision = (snake, gameField) => !utils.checkElemPositionIn2DArray(snake[0]['currentPosition'], gameField);
-const handleSnakeBodyCollision = (snake) => !snake.some(elem => snake[0]['currentPosition'][0] === elem['currentPosition'][0] && snake[0]['currentPosition'][1] === elem['currentPosition'][1]);
 
 
 const utils = function () {
@@ -160,7 +158,7 @@ const gameField = function () {
     }
 }();
 
-const snakeBody = function() {
+const snakeBody = function () {
     function createPiece(bodyPart, direction, currentPosition, func) {
         let nextPos = [];
         if (typeof func === 'function') {
@@ -177,7 +175,7 @@ const snakeBody = function() {
 
     function createSnake(snake, blueprint) {
         blueprint.forEach(value => {
-            snake.push(createPiece(value[0], value[1], value[2], moveToDecidedDirection));
+            snake.push(createPiece(value[0], value[1], value[2], snakeHandler.moveToDecidedDirection));
         });
     }
 
@@ -187,77 +185,103 @@ const snakeBody = function() {
     }
 }();
 
+const snakeHandler = function () {
+    function moveToDecidedDirection(currentPosition, direction) {
+        let currentPositionCopy = [...currentPosition];
+        if (direction === 'ArrowUp') {
+            let newPos = currentPositionCopy.shift();
+            currentPositionCopy.unshift(--newPos);
+        }
 
-let moveToDecidedDirection = (currentPosition, direction) => {
-    let currentPositionCopy = [...currentPosition];
-    if (direction === 'ArrowUp') {
-        let newPos = currentPositionCopy.shift();
-        currentPositionCopy.unshift(--newPos);
+        if (direction === 'ArrowDown') {
+            let newPos = currentPositionCopy.shift();
+            currentPositionCopy.unshift(++newPos);
+        }
+
+        if (direction === 'ArrowRight') {
+            let newPos = currentPositionCopy.pop();
+            currentPositionCopy.push(++newPos);
+        }
+
+        if (direction === 'ArrowLeft') {
+            let newPos = currentPositionCopy.pop();
+            currentPositionCopy.push(--newPos);
+        }
+
+        return currentPositionCopy;
     }
 
-    if (direction === 'ArrowDown') {
-        let newPos = currentPositionCopy.shift();
-        currentPositionCopy.unshift(++newPos);
+    function handleGameFieldCollision(snake, gameField) {
+        return !utils.checkElemPositionIn2DArray(snake[0]['currentPosition'], gameField);
     }
 
-    if (direction === 'ArrowRight') {
-        let newPos = currentPositionCopy.pop();
-        currentPositionCopy.push(++newPos);
+    function handleSnakeBodyCollision(snake) {
+        return !snake.some(elem => snake[0]['currentPosition'][0] === elem['currentPosition'][0] && snake[0]['currentPosition'][1] === elem['currentPosition'][1]);
     }
 
-    if (direction === 'ArrowLeft') {
-        let newPos = currentPositionCopy.pop();
-        currentPositionCopy.push(--newPos);
+    function handleMovement (direction, snake, func) {
+        let newSnakePosition = JSON.parse(JSON.stringify(snake));
+        if (direction === undefined) {
+            direction = snake[0]['direction']
+        }
+        snake.forEach((value, index) => {
+            if (value['part'] === 'head') {
+                value['direction'] = direction;
+                value['currentPosition'] = func(value['currentPosition'], direction);
+            } else {
+                value['direction'] = newSnakePosition[index - 1]['direction'];
+                value['currentPosition'] = [...newSnakePosition[index - 1]['currentPosition']];
+                value['nextPosition'] = func(value['currentPosition'], newSnakePosition[index - 1]['direction'])
+            }
+        });
+        return [...snake]
     }
 
-    return currentPositionCopy;
-};
+    return {
+        moveToDecidedDirection: moveToDecidedDirection,
+        handleGameFieldCollision: handleGameFieldCollision,
+        handleSnakeBodyCollision: handleSnakeBodyCollision,
+        handleMovement:handleMovement
+    }
+}();
 
-let generateFoodOnTheField = (gameField, food, initGameField) => {
-    if (food[2].length === 0) {
-        let freeCells = utils.sortArray(gameField, 'x');
-        let freeCell = utils.getRandomElementInArray(freeCells);
-        let value = gameField[freeCell[0]][freeCell[1]];
-        let positionInArray = utils.returnArrayPositionByValue(value, initGameField);
-        food[2] = positionInArray;
+
+const foodWorker = function(){
+    function generateFoodOnTheField (gameField, food, initGameField){
+        if (food[2].length === 0) {
+            let freeCells = utils.sortArray(gameField, 'x');
+            let freeCell = utils.getRandomElementInArray(freeCells);
+            let value = gameField[freeCell[0]][freeCell[1]];
+            let positionInArray = utils.returnArrayPositionByValue(value, initGameField);
+            food[2] = positionInArray;
+            return food
+        }
         return food
     }
-    return food
-};
 
-let handleMovement = (direction, snake, func) => {
-    let newSnakePosition = JSON.parse(JSON.stringify(snake));
-    if (direction === undefined) {
-        direction = snake[0]['direction']
-    }
-    snake.forEach((value, index) => {
-        if (value['part'] === 'head') {
-            value['direction'] = direction;
-            value['currentPosition'] = func(value['currentPosition'], direction);
-        } else {
-            value['direction'] = newSnakePosition[index - 1]['direction'];
-            value['currentPosition'] = [...newSnakePosition[index - 1]['currentPosition']];
-            value['nextPosition'] = func(value['currentPosition'], newSnakePosition[index - 1]['direction'])
+
+
+    function handleFood (food, snake, direction, func, gameField) {
+        let newSnakePosition = JSON.parse(JSON.stringify(snake)).slice(-1);
+        snakeHandler.handleMovement(direction, snake, func);
+        if (snake[0]['currentPosition'][0] === food[2][0] && snake[0]['currentPosition'][1] === food[2][1]) {
+            food[2] = [];
+            score = setCurrentScore();
+            changeScoreAmountOnUI(score, GAME_PLAYER_SCORE_ID);
+            snake.push(snakeBody.createPiece('body', newSnakePosition[0]['direction'], newSnakePosition[0]['currentPosition'].slice()))
         }
-    });
-    return [...snake]
-};
-
-let handleFood = (food, snake, direction, func, gameField) => {
-    let newSnakePosition = JSON.parse(JSON.stringify(snake)).slice(-1);
-    handleMovement(direction, snake, func);
-    if (snake[0]['currentPosition'][0] === food[2][0] && snake[0]['currentPosition'][1] === food[2][1]) {
-        food[2] = [];
-        score = setCurrentScore();
-        changeScoreAmountOnUI(score, GAME_PLAYER_SCORE_ID);
-        snake.push(snakeBody.createPiece('body', newSnakePosition[0]['direction'], newSnakePosition[0]['currentPosition'].slice()))
+        return true
     }
-    return true
-};
+
+    return{
+        generateFoodOnTheField:generateFoodOnTheField,
+        handleFood:handleFood
+    }
+}();
 
 let handleAction = (snake, food, gridItemChunked, gridItem, gameState, snakeDirection) => {
     let currentState = utils.makeArrayDeepCopy(gridItemChunked);
-    if (handleSnakeBodyCollision(snake) || handleGameFieldCollision(snake, gridItemChunked)) {
+    if (snakeHandler.handleSnakeBodyCollision(snake) || snakeHandler.handleGameFieldCollision(snake, gridItemChunked)) {
         console.log('collision detected');
         gameState = false;
         if (!gameState) {
@@ -267,14 +291,14 @@ let handleAction = (snake, food, gridItemChunked, gridItem, gameState, snakeDire
         }
     } else {
         let fieldWithMappedSnake = gameField.gameFieldMapping(snake, currentState);
-        food = generateFoodOnTheField(fieldWithMappedSnake, food, gridItemChunked);
-        handleFood(food, snake, snakeDirection, moveToDecidedDirection, gridItemChunked);
+        food = foodWorker.generateFoodOnTheField(fieldWithMappedSnake, food, gridItemChunked);
+        foodWorker.handleFood(food, snake, snakeDirection, snakeHandler.moveToDecidedDirection, gridItemChunked);
         gameField.drawGameFieldWithSnakeAndFood(fieldWithMappedSnake, food, gridItem, gridItemChunked);
     }
 
 };
 
-snakeBody.createSnake(snake,snakeBlueprintData);
+snakeBody.createSnake(snake, snakeBlueprintData);
 let gridItemChunked = gameField.splitArrayToChunks(gameField.createGameField(size), size);
 let gridItem;
 
@@ -313,7 +337,6 @@ document.addEventListener('keydown', function (event) {
         clearInterval(intervalId);
     }
     intervalId = setInterval(handleAction.bind(null, snake, food, gridItemChunked, gridItem, gameState, key), 300);
-
 });
 
 
