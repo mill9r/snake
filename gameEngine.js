@@ -16,6 +16,32 @@ const setCurrentScore = countScore(START_SCORE);
 const changeScoreAmountOnUI = (score, elementId) => document.getElementById(elementId).innerHTML = score;
 
 
+const clearDivContent = function () {
+    //TODO add to HTML id
+    function clear(idName) {
+        let div = document.getElementById(idName);
+        clearInner(div);
+    }
+
+    function clearInner(node) {
+        while (node.hasChildNodes()) {
+            clear(node.firstChild);
+        }
+    }
+
+    function clear(node) {
+        while (node.hasChildNodes()) {
+            clear(node.firstChild);
+        }
+        node.parentNode.removeChild(node);
+    }
+
+    return {
+        clear:clear
+    }
+}();
+
+
 const utils = function () {
     function checkElemPositionIn2DArray(pos, array) {
         return pos[0] >= 0 && pos[0] < array.length && pos[1] >= 0 && pos[1] < array[1].length;
@@ -219,7 +245,7 @@ const snakeHandler = function () {
         return !snake.some(elem => snake[0]['currentPosition'][0] === elem['currentPosition'][0] && snake[0]['currentPosition'][1] === elem['currentPosition'][1]);
     }
 
-    function handleMovement (direction, snake, func) {
+    function handleMovement(direction, snake, func) {
         let newSnakePosition = JSON.parse(JSON.stringify(snake));
         if (direction === undefined) {
             direction = snake[0]['direction']
@@ -241,13 +267,13 @@ const snakeHandler = function () {
         moveToDecidedDirection: moveToDecidedDirection,
         handleGameFieldCollision: handleGameFieldCollision,
         handleSnakeBodyCollision: handleSnakeBodyCollision,
-        handleMovement:handleMovement
+        handleMovement: handleMovement
     }
 }();
 
 
-const foodWorker = function(){
-    function generateFoodOnTheField (gameField, food, initGameField){
+const foodWorker = function () {
+    function generateFoodOnTheField(gameField, food, initGameField) {
         if (food[2].length === 0) {
             let freeCells = utils.sortArray(gameField, 'x');
             let freeCell = utils.getRandomElementInArray(freeCells);
@@ -260,8 +286,7 @@ const foodWorker = function(){
     }
 
 
-
-    function handleFood (food, snake, direction, func, gameField) {
+    function handleFood(food, snake, direction, func, gameField) {
         let newSnakePosition = JSON.parse(JSON.stringify(snake)).slice(-1);
         snakeHandler.handleMovement(direction, snake, func);
         if (snake[0]['currentPosition'][0] === food[2][0] && snake[0]['currentPosition'][1] === food[2][1]) {
@@ -273,9 +298,9 @@ const foodWorker = function(){
         return true
     }
 
-    return{
-        generateFoodOnTheField:generateFoodOnTheField,
-        handleFood:handleFood
+    return {
+        generateFoodOnTheField: generateFoodOnTheField,
+        handleFood: handleFood
     }
 }();
 
@@ -302,42 +327,152 @@ snakeBody.createSnake(snake, snakeBlueprintData);
 let gridItemChunked = gameField.splitArrayToChunks(gameField.createGameField(size), size);
 let gridItem;
 
+const mainTemplate = `<div class="game">
+    <div class="game-name">
+        <h1>Game snake v 0.1</h1>
+        <div class="game-link">
+            <!--<form action="https://mill9r.github.io/snake/game.html">-->
+            <!--<form action="game.html">-->
+                <!--<input type="submit" value="Start game"/>-->
+            <!--</form>-->
+            <input type="submit" value="Start game"/>
+        </div>
+    </div>
+</div>`;
+
+
+const mainPageHandler = {
+    canHandle: function (message) {
+        return message.name === 'main';
+    },
+    handle: function (message) {
+        const body = document.getElementsByTagName('body')[0];
+        body.insertAdjacentHTML('afterend', mainTemplate);
+        return {
+            name: 'main'
+        };
+    }
+};
+
+const gameTemplate = `<div class="game-container">
+    <div class="game-info">
+        <div class="game-info_score">
+            <div class="game-score_current">Your score:</div>
+            <div id="game-score">0</div>
+        </div>
+        <div class="game-info_best-result">
+            <div class="best-result_sign">Best score:</div>
+            <div id="best-result_score">0</div>
+        </div>
+        <div id="game-status">Pause</div>
+    </div>
+    <div class="grid-container">
+    </div>
+</div>`;
+
+const gamePageHandler = {
+    canHandle: function (message) {
+        return message.name === 'game';
+    },
+    handle: function (message) {
+        console.log(message);
+        const body = document.getElementsByTagName('body')[0];
+        body.insertAdjacentHTML('afterend', gameTemplate);
+        return {
+            name: 'game'
+        };
+    }
+};
+
+
+class Mediator {
+    constructor() {
+        this.handlers = [];
+    }
+
+    addHandler(handler) {
+        if (this.isValidHandler(handler)) {
+            this.handlers.push(handler);
+            return this;
+        }
+        let error = new Error('Attempt to register an invalid handler with the mediator.');
+        error.handler = handler;
+        throw error;
+    }
+
+    isValidHandler(handler) {
+        return (typeof handler.canHandle === 'function') &&
+            (typeof handler.handle === 'function');
+    }
+
+    request(message) {
+        for (let i = 0; i < this.handlers.length; i++) {
+            let handler = this.handlers[i];
+            if (handler.canHandle(message)) {
+                return handler.handle(message);
+            }
+        }
+        let error = new Error('Mediator was unable to satisfy request.');
+        error.request = message;
+        return error;
+    }
+}
+
+
 document.addEventListener('DOMContentLoaded', function (event) {
 
-    let elem = document.getElementsByClassName('grid-container')[0];
-    elem.style.gridTemplateColumns = "auto ".repeat(size - 1) + "auto";
-    for (let i = 0; i < size * size; i++) {
-        let div = document.createElement('div');
-        div.className = "grid-item";
-        elem.appendChild(div)
-    }
-    gridItem = Array.from(document.getElementsByClassName('grid-item'));
-    let currentBestScore = localStorageWorker.get(TOP_RESULT);
-    let displayOnUIBestScore = currentBestScore ? currentBestScore : 0;
-    changeScoreAmountOnUI(displayOnUIBestScore, BEST_RESULT_UI);
+    let mediator = new Mediator();
+    mediator.addHandler(mainPageHandler);
+    mediator.addHandler(gamePageHandler);
+
+    // let elem = document.getElementsByClassName('grid-container')[0];
+    // elem.style.gridTemplateColumns = "auto ".repeat(size - 1) + "auto";
+    // for (let i = 0; i < size * size; i++) {
+    //     let div = document.createElement('div');
+    //     div.className = "grid-item";
+    //     elem.appendChild(div)
+    // }
+    // gridItem = Array.from(document.getElementsByClassName('grid-item'));
+    // let currentBestScore = localStorageWorker.get(TOP_RESULT);
+    // let displayOnUIBestScore = currentBestScore ? currentBestScore : 0;
+    // changeScoreAmountOnUI(displayOnUIBestScore, BEST_RESULT_UI);
+
+    let request = {name: 'main'};
+    let reply = mediator.request(request);
 
 }, false);
 
-
-const pauseButton = document.getElementById(PAUSE_BUTTON);
-pauseButton.addEventListener('click', function (event) {
-    clearInterval(intervalId);
-    if (pauseButton.innerText === 'Pause') {
-        pauseButton.innerText = 'Continue';
-        clearInterval(intervalId);
-    } else {
-        pauseButton.innerText = 'Pause';
-        intervalId = setInterval(handleAction.bind(null, snake, food, gridItemChunked, gridItem, gameState), 300);
-    }
+document.addEventListener('click', event => {
+    let mediator = new Mediator();
+    mediator.addHandler(mainPageHandler);
+    mediator.addHandler(gamePageHandler);
+    console.log('click');
+    console.log(event.srcElement);
+    let request = {name: 'game'};
+    let reply = mediator.request(request);
 });
 
-document.addEventListener('keydown', function (event) {
-    const key = event.key;
-    if (intervalId !== undefined) {
-        clearInterval(intervalId);
-    }
-    intervalId = setInterval(handleAction.bind(null, snake, food, gridItemChunked, gridItem, gameState, key), 300);
-});
+
+// const pauseButton = document.getElementById(PAUSE_BUTTON);
+// pauseButton.addEventListener('click', function (event) {
+//     clearInterval(intervalId);
+//     if (pauseButton.innerText === 'Pause') {
+//         pauseButton.innerText = 'Continue';
+//         clearInterval(intervalId);
+//     } else {
+//         pauseButton.innerText = 'Pause';
+//         intervalId = setInterval(handleAction.bind(null, snake, food, gridItemChunked, gridItem, gameState), 300);
+//     }
+// });
+//
+// document.addEventListener('keydown', function (event) {
+//     const key = event.key;
+//     if (intervalId !== undefined) {
+//         clearInterval(intervalId);
+//     }
+//     intervalId = setInterval(handleAction.bind(null, snake, food, gridItemChunked, gridItem, gameState, key), 300);
+// });
+
 
 
 
