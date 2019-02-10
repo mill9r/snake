@@ -2,9 +2,12 @@ const size = 10;
 const BONUS = 10;
 const GAME_PLAYER_SCORE_ID = 'game-score';
 const START_SCORE = 0;
-const TOP_RESULT = 'best-result';
+const TOP_RESULT = 'bestResult';
+const CURRENT_RESULT= 'currentResult';
 const PAUSE_BUTTON = 'game-status';
 const BEST_RESULT_UI = 'best-result_score';
+const BUTTON_PAUSE = 'Pause';
+const BUTTON_CONTINUE = 'Continue';
 let gameState = true;
 let score = 0;
 let intervalId;
@@ -12,12 +15,12 @@ const INITIAL_DIV = 'init-state';
 let food = ['food', '', []];
 const snake = [];
 const snakeBlueprintData = [['head', '', [2, 3]], ['body', '', [2, 2]], ['body', '', [2, 1]]];
+
 const countScore = score => () => score += BONUS;
 const setCurrentScore = countScore(START_SCORE);
 const changeScoreAmountOnUI = (score, elementId) => document.getElementById(elementId).innerHTML = score;
 
 const clearDivContent = function () {
-    //TODO add to HTML id
     function clearDOMTree(idName) {
         let div = document.getElementById(idName);
         clearInner(div);
@@ -41,14 +44,13 @@ const clearDivContent = function () {
     }
 }();
 
-class Mediator {
-    constructor() {
-        this.handlers = [];
-    }
 
-    addHandler(handler) {
-        if (this.isValidHandler(handler)) {
-            this.handlers.push(handler);
+const mediator = function () {
+    const handlers = [];
+
+    function addHandler(handler) {
+        if (isValidHandler(handler)) {
+            handlers.push(handler);
             return this;
         }
         let error = new Error('Attempt to register an invalid handler with the mediator.');
@@ -56,14 +58,14 @@ class Mediator {
         throw error;
     }
 
-    isValidHandler(handler) {
+    function isValidHandler(handler) {
         return (typeof handler.canHandle === 'function') &&
             (typeof handler.handle === 'function');
     }
 
-    request(message) {
-        for (let i = 0; i < this.handlers.length; i++) {
-            let handler = this.handlers[i];
+    function request(message) {
+        for (let i = 0; i < handlers.length; i++) {
+            let handler = handlers[i];
             if (handler.canHandle(message)) {
                 return handler.handle(message);
             }
@@ -72,7 +74,13 @@ class Mediator {
         error.request = message;
         return error;
     }
-}
+
+    return {
+        addHandler: addHandler,
+        request: request
+    }
+
+}();
 
 const mainTemplate = `<div class="game">
     <div class="game-name">
@@ -90,7 +98,6 @@ const mainPageHandler = {
     },
     handle: function (message) {
         const divElem = document.getElementById(INITIAL_DIV);
-        console.log('divElem', divElem);
         divElem.insertAdjacentHTML('afterbegin', mainTemplate);
         return {
             name: 'main'
@@ -120,11 +127,8 @@ const gamePageHandler = {
         return message.name === 'game';
     },
     handle: function (message) {
-        console.log(message);
         const divElem = document.getElementById(INITIAL_DIV);
-        console.log('divElem', divElem);
         divElem.insertAdjacentHTML('afterbegin', gameTemplate);
-        //----------------
         let elem = document.getElementsByClassName('grid-container')[0];
         elem.style.gridTemplateColumns = "auto ".repeat(size - 1) + "auto";
         for (let i = 0; i < size * size; i++) {
@@ -136,7 +140,6 @@ const gamePageHandler = {
         let currentBestScore = localStorageWorker.get(TOP_RESULT);
         let displayOnUIBestScore = currentBestScore ? currentBestScore : 0;
         changeScoreAmountOnUI(displayOnUIBestScore, BEST_RESULT_UI);
-        //---------------
 
         return {
             name: 'game'
@@ -156,7 +159,7 @@ const gameResult = `
                 <div class="best-result_sign">Best score:</div>
                 <div id="best-result_score">0</div>
             </div>
-            <div id="game-status">Play again</div>
+            <div id="game-play-again">Play again</div>
         </div>
     </div>`;
 
@@ -168,11 +171,12 @@ const resultPageHandler = {
     handle: function (message) {
         clearDivContent.clear(INITIAL_DIV);
         const divElem = document.getElementById(INITIAL_DIV);
-        console.log('divElem', divElem);
         divElem.insertAdjacentHTML('afterbegin', gameResult);
         let currentBestScore = localStorageWorker.get(TOP_RESULT);
+        let currentResult = localStorageWorker.get(CURRENT_RESULT);
         let displayOnUIBestScore = currentBestScore ? currentBestScore : 0;
         changeScoreAmountOnUI(displayOnUIBestScore, BEST_RESULT_UI);
+        changeScoreAmountOnUI(currentResult,'game-score');
         return {
             name: 'result'
         };
@@ -402,10 +406,32 @@ const snakeHandler = function () {
         return [...snake]
     }
 
+    function handleAction(snake, food, gridItemChunked, gridItem, gameState, snakeDirection = undefined) {
+        let currentState = utils.makeArrayDeepCopy(gridItemChunked);
+        if (handleSnakeBodyCollision(snake) || handleGameFieldCollision(snake, gridItemChunked)) {
+            console.log('collision detected');
+            gameState = false;
+            if (!gameState) {
+                let gameResult = localStorageWorker.compareCurrentWithBestResultAndReturnHigher(TOP_RESULT, score);
+                localStorageWorker.set(TOP_RESULT, gameResult);
+                //TODO fix const
+                localStorageWorker.set(CURRENT_RESULT, score);
+                interval.stop();
+                let request = {name: 'result'};
+                let reply = mediator.request(request);
+                snake.length = 0;
+            }
+        } else {
+            let fieldWithMappedSnake = gameField.gameFieldMapping(snake, currentState);
+            food = foodWorker.generateFoodOnTheField(fieldWithMappedSnake, food, gridItemChunked);
+            foodWorker.handleFood(food, snake, snakeDirection, moveToDecidedDirection, gridItemChunked);
+            gameField.drawGameFieldWithSnakeAndFood(fieldWithMappedSnake, food, gridItem, gridItemChunked);
+        }
+
+    }
+
     return {
-        moveToDecidedDirection: moveToDecidedDirection,
-        handleGameFieldCollision: handleGameFieldCollision,
-        handleSnakeBodyCollision: handleSnakeBodyCollision,
+        handleAction: handleAction,
         handleMovement: handleMovement
     }
 }();
@@ -460,92 +486,48 @@ const interval = function () {
     }
 }();
 
-let mediator = new Mediator();
-mediator.addHandler(mainPageHandler);
-mediator.addHandler(gamePageHandler);
-mediator.addHandler(resultPageHandler);
-
-
-let handleAction = (snake, food, gridItemChunked, gridItem, gameState, snakeDirection) => {
-    let currentState = utils.makeArrayDeepCopy(gridItemChunked);
-    if (snakeHandler.handleSnakeBodyCollision(snake) || snakeHandler.handleGameFieldCollision(snake, gridItemChunked)) {
-        console.log('collision detected');
-        gameState = false;
-        if (!gameState) {
-            let gameResult = localStorageWorker.compareCurrentWithBestResultAndReturnHigher(TOP_RESULT, score);
-            localStorageWorker.set(TOP_RESULT, gameResult);
-            interval.stop();
-            let request = {name: 'result'};
-            let reply = mediator.request(request);
-            snake.length = 0;
-        }
-    } else {
-        let fieldWithMappedSnake = gameField.gameFieldMapping(snake, currentState);
-        food = foodWorker.generateFoodOnTheField(fieldWithMappedSnake, food, gridItemChunked);
-        foodWorker.handleFood(food, snake, snakeDirection, snakeHandler.moveToDecidedDirection, gridItemChunked);
-        gameField.drawGameFieldWithSnakeAndFood(fieldWithMappedSnake, food, gridItem, gridItemChunked);
-    }
-
-};
-
 
 let gridItemChunked = gameField.splitArrayToChunks(gameField.createGameField(size), size);
 let gridItem;
 
 document.addEventListener('DOMContentLoaded', function (event) {
+    mediator.addHandler(mainPageHandler);
+    mediator.addHandler(gamePageHandler);
+    mediator.addHandler(resultPageHandler);
     let request = {name: 'main'};
     let reply = mediator.request(request);
 }, false);
 
 document.addEventListener('click', e => {
-    if (e.target && (e.target.id === 'start-game' || e.target.id === 'game-status')) {
+    if (e.target && (e.target.id === 'start-game' || e.target.id === 'game-play-again')) {
         clearDivContent.clear(INITIAL_DIV);
         let request = {name: 'game'};
         gameState = true;
         mediator.request(request);
     }
+
     if (e.target && e.target.id === PAUSE_BUTTON) {
-        console.log('pause');
-        var target = e.target || e.srcElement,
-            text = target.textContent  //|| text.innerText;
-        console.log('innerText ', text );
-        if (e.target.innerText === 'Pause') {
-            e.target.innerText = 'Continue';
+        let button = document.getElementById(e.target.id);
+        if (button.innerText === BUTTON_PAUSE) {
+            button.innerText = BUTTON_CONTINUE;
             interval.stop()
-        }
-        if (e.target.innerText === 'Continue') {
-            e.target.innerText = 'Pause';
-            interval.start(handleAction, [snake, food, gridItemChunked, gridItem, gameState, key])
+        } else {
+            button.innerText = BUTTON_PAUSE;
+            interval.start(snakeHandler.handleAction, [snake, food, gridItemChunked, gridItem, gameState])
         }
     }
 });
 
 document.addEventListener('keydown', function (event) {
     const key = event.key;
-    console.log('intervalId:', intervalId);
     if (document.getElementById('game-container')) {
         if (snake.length === 0) {
             snakeBody.createSnake(snake, snakeBlueprintData);
-            console.log('gridItemChunked', gridItemChunked)
         }
         if (intervalId !== undefined) {
             interval.stop();
         }
         interval.stop();
-        interval.start(handleAction, [snake, food, gridItemChunked, gridItem, gameState, key])
+        interval.start(snakeHandler.handleAction, [snake, food, gridItemChunked, gridItem, gameState, key])
     }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-

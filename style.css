@@ -25,7 +25,7 @@
 .game-result{
     position: absolute;
     top: 40%;
-    left: 20%;
+    left: 30%;
     margin: 0 auto;
 }
 
@@ -68,7 +68,7 @@ input {
     grid-template-columns: auto 40px ;
 }
 
-#game-status{
+#game-status,#game-play-again{
     grid-column-start: 1;
     grid-column-end: 3;
     background-color: #4CAF50;
