@@ -51,7 +51,7 @@ input {
 
 .game-info {
     display: grid;
-    grid-template-rows: auto auto;
+    grid-template-rows: auto auto auto;
     grid-template-columns: 270px 270px;
     margin-left: 20%;
     margin-bottom: 5%;
@@ -80,4 +80,8 @@ input {
     display: inline-block;
     font-size: 16px;
 }
-
+.game-help{
+    grid-column-start: 1;
+    grid-column-end: 3;
+    text-align: center;
+}

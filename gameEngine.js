@@ -20,9 +20,26 @@ const snake = [];
 const snakeBlueprintData = [['head', '', [2, 3]], ['body', '', [2, 2]], ['body', '', [2, 1]]];
 let gridItem;
 
-const countScore = score => () => score += BONUS;
-const setCurrentScore = countScore(START_SCORE);
+
 const changeScoreAmountOnUI = (score, elementId) => document.getElementById(elementId).innerHTML = score;
+
+const counter = function(){
+    let score = 0;
+
+    function addToCurrentScore(){
+        return score+=BONUS
+    }
+
+    function resetScore(){
+        score = 0;
+    }
+
+    return{
+        addToCurrentScore:addToCurrentScore,
+        resetScore:resetScore
+    }
+
+}();
 
 const clearDivContent = function () {
     function clearDOMTree(idName) {
@@ -121,6 +138,7 @@ const gameTemplate = `
             <div id="best-result_score">0</div>
         </div>
         <div id="game-status">Pause</div>
+        <div class="game-help">Press up/down/left/right arrow to start the game.</div>
     </div>
     <div class="grid-container">
     </div>
@@ -142,6 +160,7 @@ const gamePageHandler = {
         }
         gridItem = Array.from(document.getElementsByClassName('grid-item'));
         localStorageWorker.set(CURRENT_RESULT, 0);
+        counter.resetScore();
         let currentBestScore = localStorageWorker.get(TOP_RESULT);
         let displayOnUIBestScore = currentBestScore ? currentBestScore : 0;
         changeScoreAmountOnUI(displayOnUIBestScore, BEST_RESULT_UI);
@@ -419,7 +438,6 @@ const snakeHandler = function () {
             if (!gameState) {
                 let gameResult = localStorageWorker.compareCurrentWithBestResultAndReturnHigher(TOP_RESULT, score);
                 localStorageWorker.set(TOP_RESULT, gameResult);
-                //TODO fix const
                 localStorageWorker.set(CURRENT_RESULT, score);
                 interval.stop();
                 let request = {name: 'result'};
@@ -461,7 +479,7 @@ const foodWorker = function () {
         snakeHandler.handleMovement(direction, snake, func);
         if (snake[0]['currentPosition'][0] === food[2][0] && snake[0]['currentPosition'][1] === food[2][1]) {
             food[2] = [];
-            score = setCurrentScore();
+            score = counter.addToCurrentScore();
             changeScoreAmountOnUI(score, GAME_PLAYER_SCORE_ID);
             snake.push(snakeBody.createPiece('body', newSnakePosition[0]['direction'], newSnakePosition[0]['currentPosition'].slice()))
         }
