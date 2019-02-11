@@ -3,11 +3,14 @@ const BONUS = 10;
 const GAME_PLAYER_SCORE_ID = 'game-score';
 const START_SCORE = 0;
 const TOP_RESULT = 'bestResult';
-const CURRENT_RESULT= 'currentResult';
+const CURRENT_RESULT = 'currentResult';
 const PAUSE_BUTTON = 'game-status';
 const BEST_RESULT_UI = 'best-result_score';
 const BUTTON_PAUSE = 'Pause';
 const BUTTON_CONTINUE = 'Continue';
+const SNAKE_COLOR = 'lightgray';
+const FOOD_COLOR = 'darkcyan';
+const FIELD_COLOR = 'white';
 let gameState = true;
 let score = 0;
 let intervalId;
@@ -15,6 +18,7 @@ const INITIAL_DIV = 'init-state';
 let food = ['food', '', []];
 const snake = [];
 const snakeBlueprintData = [['head', '', [2, 3]], ['body', '', [2, 2]], ['body', '', [2, 1]]];
+let gridItem;
 
 const countScore = score => () => score += BONUS;
 const setCurrentScore = countScore(START_SCORE);
@@ -137,6 +141,7 @@ const gamePageHandler = {
             elem.appendChild(div)
         }
         gridItem = Array.from(document.getElementsByClassName('grid-item'));
+        localStorageWorker.set(CURRENT_RESULT, 0);
         let currentBestScore = localStorageWorker.get(TOP_RESULT);
         let displayOnUIBestScore = currentBestScore ? currentBestScore : 0;
         changeScoreAmountOnUI(displayOnUIBestScore, BEST_RESULT_UI);
@@ -176,7 +181,7 @@ const resultPageHandler = {
         let currentResult = localStorageWorker.get(CURRENT_RESULT);
         let displayOnUIBestScore = currentBestScore ? currentBestScore : 0;
         changeScoreAmountOnUI(displayOnUIBestScore, BEST_RESULT_UI);
-        changeScoreAmountOnUI(currentResult,'game-score');
+        changeScoreAmountOnUI(currentResult, 'game-score');
         return {
             name: 'result'
         };
@@ -281,17 +286,17 @@ const gameField = function () {
                     if (fieldWithMappedSnake[i][j] === 'x') {
                         let pos = gridItemChunked[i][j];
                         let color = gridItem[Number(pos)];
-                        color.style.backgroundColor = 'lightgray';
+                        color.style.backgroundColor = SNAKE_COLOR;
                     }
                     if (food[2][0] === i && food[2][1] === j) {
                         let pos = gridItemChunked[i][j];
                         let color = gridItem[Number(pos)];
-                        color.style.backgroundColor = 'darkcyan'
+                        color.style.backgroundColor = FOOD_COLOR;
                     }
                 } else {
                     let pos = gridItemChunked[i][j];
                     let color = gridItem[Number(pos)];
-                    color.style.backgroundColor = 'white'
+                    color.style.backgroundColor = FIELD_COLOR;
                 }
             }
         }
@@ -488,7 +493,7 @@ const interval = function () {
 
 
 let gridItemChunked = gameField.splitArrayToChunks(gameField.createGameField(size), size);
-let gridItem;
+
 
 document.addEventListener('DOMContentLoaded', function (event) {
     mediator.addHandler(mainPageHandler);
